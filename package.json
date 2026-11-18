@@ -1,0 +1,28 @@
+{
+  "name": "echo-behavior-lab",
+  "version": "1.0.0",
+  "private": true,
+  "license": "MIT",
+  "description": "Black-box Mealy machine learning and behavioral counterexample discovery",
+  "engines": { "node": ">=22.12.0 <25" },
+  "workspaces": ["apps/api", "apps/web"],
+  "scripts": {
+    "dev:api": "npm run dev -w @echo/api",
+    "dev:web": "npm run dev -w @echo/web",
+    "build": "npm run db:generate && npm run build -w @echo/api && npm run build -w @echo/web",
+    "test": "npm run test -w @echo/api && npm run test -w @echo/web",
+    "test:core": "bash scripts/test-core-offline.sh",
+    "typecheck": "npm run typecheck -w @echo/api && npm run typecheck -w @echo/web",
+    "db:generate": "prisma generate --schema apps/api/prisma/schema.prisma",
+    "db:deploy": "prisma migrate deploy --schema apps/api/prisma/schema.prisma",
+    "db:seed": "tsx apps/api/prisma/seed.ts",
+    "start:api": "npm run start -w @echo/api",
+    "smoke": "node scripts/smoke.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "22.15.29",
+    "prisma": "6.19.0",
+    "tsx": "4.20.3",
+    "typescript": "5.9.3"
+  }
+}

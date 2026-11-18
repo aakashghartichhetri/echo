@@ -1,0 +1,58 @@
+name: ECHO CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16.8-alpine
+        env:
+          POSTGRES_DB: echo
+          POSTGRES_USER: echo
+          POSTGRES_PASSWORD: echo_ci_only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U echo -d echo"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      DATABASE_URL: postgresql://echo:echo_ci_only@127.0.0.1:5432/echo?schema=public
+      ORACLE_BASE_URL: http://127.0.0.1:3001
+      PORT: 3001
+      RUN_DB_TESTS: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Generate Prisma client
+        run: npm run db:generate
+      - name: Apply database migrations
+        run: npm run db:deploy
+      - name: Static type checks
+        run: npm run typecheck
+      - name: Unit, HTTP, and PostgreSQL integration tests
+        run: npm test
+      - name: Production build
+        run: npm run build
+      - name: Seed sample reports
+        run: npm run db:seed
+      - name: Start API and run end-to-end smoke checks
+        run: |
+          npm run start:api > /tmp/echo-api.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:3001/api/v1/health/ready > /dev/null; then break; fi
+            sleep 1
+          done
+          npm run smoke || (cat /tmp/echo-api.log && exit 1)

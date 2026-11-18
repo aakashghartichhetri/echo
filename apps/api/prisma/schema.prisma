@@ -1,0 +1,34 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Run {
+  id            String    @id @default(uuid())
+  targetId      String
+  status        RunStatus @default(QUEUED)
+  settings      Json
+  report        Json?
+  error         String?
+  queries       Int       @default(0)
+  casesChecked  Int       @default(0)
+  stateCount    Int       @default(0)
+  findingCount  Int       @default(0)
+  createdAt     DateTime  @default(now())
+  startedAt     DateTime?
+  completedAt   DateTime?
+
+  @@index([createdAt(sort: Desc)])
+}
+
+enum RunStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
