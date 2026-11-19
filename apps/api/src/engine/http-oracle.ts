@@ -5,7 +5,7 @@ const responseSchema = z.object({ outputs: z.array(z.string().max(100)).max(32) 
 
 /** Replaying each trace against a fresh sandbox instance avoids state leakage. */
 export class HttpTraceOracle implements TraceOracle {
-  constructor(private readonly url: string, private readonly targetId: string) {}
+  constructor(private readonly url: string, private readonly targetId: string, private readonly internalSecret?: string) {}
 
   async trace(actions: string[], signal?: AbortSignal): Promise<string[]> {
     const controller = new AbortController();
@@ -15,7 +15,7 @@ export class HttpTraceOracle implements TraceOracle {
     try {
       const response = await fetch(this.url, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json', ...(this.internalSecret ? { 'x-echo-internal-secret': this.internalSecret } : {}) },
         body: JSON.stringify({ targetId: this.targetId, actions }),
         signal: controller.signal,
       });

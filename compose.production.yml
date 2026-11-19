@@ -1,0 +1,47 @@
+# Run behind Caddy HTTPS on a single VPS with a managed PostgreSQL database.
+# Example: docker compose --env-file .env.production -f compose.production.yml up -d --build
+services:
+  app:
+    build: .
+    environment:
+      NODE_ENV: production
+      AUTH_MODE: github
+      PORT: "3001"
+      DATABASE_URL: ${DATABASE_URL:?Provide managed PostgreSQL connection string}
+      PUBLIC_ORIGIN: https://${APP_DOMAIN:?Provide a public DNS name}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:?Provide GitHub OAuth client ID}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:?Provide GitHub OAuth client secret}
+      SESSION_SECRET: ${SESSION_SECRET:?Provide a random secret}
+      INTERNAL_ORACLE_SECRET: ${INTERNAL_ORACLE_SECRET:?Provide a separate random secret}
+      ORACLE_BASE_URL: http://127.0.0.1:3001
+      DAILY_RUN_LIMIT: "20"
+      TRUST_PROXY_HOPS: "1"
+    expose:
+      - "3001"
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 256
+    mem_limit: 1g
+  caddy:
+    image: caddy:2-alpine
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?Provide a public DNS name}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+volumes:
+  caddy_data:
+  caddy_config:

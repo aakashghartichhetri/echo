@@ -1,3 +1,4 @@
+# Private development setup. Never forward this configuration to the public internet.
 services:
   db:
     image: postgres:16.8-alpine
@@ -13,21 +14,22 @@ services:
       timeout: 3s
       retries: 20
     restart: unless-stopped
-
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    build: .
     environment:
+      NODE_ENV: development
+      AUTH_MODE: local
       DATABASE_URL: postgresql://echo:echo_local_only@db:5432/echo?schema=public
       PORT: "3001"
       ORACLE_BASE_URL: http://127.0.0.1:3001
+      ECHO_RATE_LIMITER_MODE: ${ECHO_RATE_LIMITER_MODE:-reference}
+      ECHO_EXTERNAL_URL: ${ECHO_EXTERNAL_URL:-}
+      ECHO_EXTERNAL_ACTIONS: ${ECHO_EXTERNAL_ACTIONS:-}
     ports:
       - "127.0.0.1:3001:3001"
     depends_on:
       db:
         condition: service_healthy
     restart: unless-stopped
-
 volumes:
   echo_pgdata:

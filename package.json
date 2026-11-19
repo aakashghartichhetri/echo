@@ -1,11 +1,16 @@
 {
   "name": "echo-behavior-lab",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
   "license": "MIT",
-  "description": "Black-box Mealy machine learning and behavioral counterexample discovery",
-  "engines": { "node": ">=22.12.0 <25" },
-  "workspaces": ["apps/api", "apps/web"],
+  "description": "Multi-tenant black-box API behavior experiments and release regression checks",
+  "engines": {
+    "node": ">=24.0.0 <25"
+  },
+  "workspaces": [
+    "apps/api",
+    "apps/web"
+  ],
   "scripts": {
     "dev:api": "npm run dev -w @echo/api",
     "dev:web": "npm run dev -w @echo/web",

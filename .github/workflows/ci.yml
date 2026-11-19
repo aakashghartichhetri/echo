@@ -1,15 +1,15 @@
-name: ECHO CI
-
+name: ECHO verification
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
-
+permissions:
+  contents: read
 jobs:
-  verify:
+  test:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     services:
       postgres:
         image: postgres:16.8-alpine
@@ -17,8 +17,7 @@ jobs:
           POSTGRES_DB: echo
           POSTGRES_USER: echo
           POSTGRES_PASSWORD: echo_ci_only
-        ports:
-          - 5432:5432
+        ports: ["5432:5432"]
         options: >-
           --health-cmd "pg_isready -U echo -d echo"
           --health-interval 5s
@@ -27,32 +26,45 @@ jobs:
     env:
       DATABASE_URL: postgresql://echo:echo_ci_only@127.0.0.1:5432/echo?schema=public
       ORACLE_BASE_URL: http://127.0.0.1:3001
+      AUTH_MODE: local
+      NODE_ENV: test
       PORT: 3001
       RUN_DB_TESTS: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
+      - name: Confirm Node and npm toolchain
+        run: node --version && npm --version
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
+        run: |
+          if test -f package-lock.json; then
+            npm ci --no-audit --no-fund
+          else
+            npm install --no-audit --no-fund
+          fi
+      - name: Check production dependency advisories
+        run: npm audit --omit=dev --audit-level=high --audit=true
       - name: Generate Prisma client
         run: npm run db:generate
       - name: Apply database migrations
         run: npm run db:deploy
-      - name: Static type checks
+      - name: Typecheck
         run: npm run typecheck
-      - name: Unit, HTTP, and PostgreSQL integration tests
+      - name: Unit and PostgreSQL integration tests
         run: npm test
-      - name: Production build
+      - name: Build API and frontend
         run: npm run build
-      - name: Seed sample reports
+      - name: Verify production Docker image builds
+        run: docker build --progress=plain --tag echo-saas-ci:latest .
+      - name: Seed local test workspace
         run: npm run db:seed
-      - name: Start API and run end-to-end smoke checks
+      - name: Smoke checks
         run: |
           npm run start:api > /tmp/echo-api.log 2>&1 &
-          for i in $(seq 1 30); do
-            if curl --fail --silent http://127.0.0.1:3001/api/v1/health/ready > /dev/null; then break; fi
+          for i in $(seq 1 45); do
+            if curl --fail --silent http://127.0.0.1:3001/api/v1/health/ready >/dev/null; then break; fi
             sleep 1
           done
           npm run smoke || (cat /tmp/echo-api.log && exit 1)

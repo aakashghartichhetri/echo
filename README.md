@@ -1,84 +1,108 @@
-# ECHO — Black-Box Behavior Lab
+# ECHO - API Behavior Lab
 
-A full-stack application that automatically explores API behavior, learns finite-state-machine models, and detects inconsistencies without access to the underlying source code.
+**Explore, model, and compare API behavior without access to source code.**
 
-## Overview
+ECHO is a web-based platform for black-box API testing and state-machine learning. It executes sequences of API actions, observes responses, infers approximate behavioral models, and identifies discrepancies between predicted and actual behavior.
 
-ECHO uses black-box testing and state-machine inference to understand how software responds to different inputs. It generates test sequences, predicts expected behavior, and identifies unexpected responses.
+The platform provides an interactive workspace to analyze API behavior, investigate counterexamples, and compare results across releases.
 
-The system includes a REST API, an interactive dashboard, persistent experiment history, and automated testing.
+## Dashboard
 
-## Tech Stack
+*Interactive dashboard for exploring API behavior, inspecting learned models, and managing experiments.*
 
-- **Frontend:** React, TypeScript, Vite
-- **Backend:** Node.js, Express, TypeScript
-- **Database:** PostgreSQL, Prisma ORM
-- **Testing:** Vitest
-- **Infrastructure:** Docker, GitHub Actions
+## Why ECHO?
+
+APIs often maintain hidden internal state, making their behavior difficult to understand through individual requests.
+
+ECHO addresses this by systematically exploring action sequences and reconstructing observable behavior as an approximate state machine. This helps developers understand state transitions, identify unexpected responses, and detect behavioral regressions.
 
 ## Key Features
 
-- **Black-Box Exploration:** Automatically tests APIs through observable inputs and outputs.
-- **State-Machine Learning:** Infers behavioral models and visualizes state transitions.
-- **Counterexample Detection:** Identifies execution sequences that contradict learned models.
-- **Experiment Management:** Supports asynchronous runs, cancellation, and persistent history.
-- **Interactive Dashboard:** Visualizes models, metrics, test results, and failing sequences.
+- **Black-box testing** - Explore APIs without accessing their implementation.
+- **State-machine inference** — Generate behavioral models from observed action sequences.
+- **Counterexample detection** — Identify mismatches between learned models and actual responses.
+- **Release comparison** — Compare saved experiments to detect behavioral changes.
+- **Experiment management** — View, search, export, and manage reports.
+- **Built-in test APIs** — Explore rate-limiter and authentication behavior.
+
+## Tech Stack
+
+| Layer          | Technologies                  |
+| -------------- | ----------------------------- |
+| Frontend       | React, TypeScript             |
+| Backend        | Node.js, Express, Zod         |
+| Database       | PostgreSQL, Prisma            |
+| Testing        | Vitest                        |
+| Infrastructure | Docker, GitHub Actions, Caddy |
 
 ## Getting Started
 
-**Prerequisite:** Docker Desktop with Docker Compose.
+**Prerequisites:** Git and Docker Desktop with Docker Compose.
+
+**1. Clone the repository**
 
 ```bash
-# Start the application
-docker compose up --build
+git clone <REPOSITORY_URL>
+cd <REPOSITORY_DIRECTORY>
 ```
 
-Open [**http://localhost:3001**](http://localhost:3001) to access the dashboard.
-
-## Testing
+**2. Start the application**
 
 ```bash
-# Run automated tests
+docker compose up -d --build
+```
+
+**3. Open the dashboard**
+
+Visit [**http://localhost:3001**](http://localhost:3001)
+
+Local mode includes a demo workspace and sample reports. No authentication, API keys, or `.env` configuration are required.
+
+**4. Run tests (optional)**
+
+```bash
 docker compose exec app npm test
-
-# Run end-to-end smoke checks
 docker compose exec app npm run smoke
+```
 
-# Stop services
+**5. Stop the application**
+
+```bash
 docker compose down
 ```
 
-## Reference Systems
+Local database data is preserved across restarts.
 
-| System         | Test Scenario                                                 |
-| -------------- | ------------------------------------------------------------- |
-| Rate Limiter   | Detects an undocumented response after repeated API requests. |
-| Authentication | Learns login, validation, and logout state transitions.       |
+## How It Works
 
-Both systems use deterministic, simulated behavior for repeatable testing.
+```text
+Select API
+    ↓
+Execute Action Sequences
+    ↓
+Observe Responses
+    ↓
+Infer State Machine
+    ↓
+Detect Counterexamples
+    ↓
+Save & Compare Results
+```
 
-## Architecture
+ECHO performs bounded experiments against predefined test APIs. Learned models approximate observable behavior and do not guarantee complete API correctness.
+
+## Project Structure
 
 ```text
 apps/
-├── api/
-│   ├── src/       # API, inference engine, jobs
-│   ├── prisma/    # Schema and migrations
-│   └── test/      # Backend tests
-└── web/
-    └── src/       # React dashboard
-
-docs/              # Architecture and API documentation
-examples/          # External API adapter
-scripts/           # Verification utilities
+  api/             Backend, inference engine, tests
+  web/             Dashboard and experiment management
+scripts/           Utilities and smoke tests
+.github/workflows/ CI/CD pipelines
+docker-compose.yml Local development environment
 ```
 
-## Engineering Considerations
+## License
 
-- Isolates test sessions to ensure reproducible results.
-- Uses bounded exploration to control execution costs.
-- Persists experiments for debugging and analysis.
-- Separates the learning engine from target implementations.
-- Provides automated CI checks for code quality and correctness.
+MIT License.
 
-**Limitations:** Inferred models are approximations, not formal correctness proofs. The application is intended for local development and requires additional security controls before public deployment. Full Docker and integration testing remain pending verification.

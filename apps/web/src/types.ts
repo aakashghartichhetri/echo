@@ -41,6 +41,7 @@ export interface Report {
   settings: Settings;
   machine: Machine;
   findings: Finding[];
+  samples?: { actions: string[]; outputs: string[] }[];
   checkedTraces: number;
   uniqueQueries: number;
   cacheHits: number;
@@ -53,4 +54,25 @@ export interface RunDetail extends RunSummary {
   report: Report | null;
   startedAt: string | null;
   error: string | null;
+}
+
+export interface ModelDifference {
+  actions: string[];
+  baseline: string[];
+  candidate: string[];
+  mismatchAt: number;
+}
+
+export interface Comparison {
+  targetId: string;
+  baselineId: string;
+  candidateId: string;
+  comparedStatePairs: number;
+  comparedTransitions: number;
+  comparedSamples: number;
+  modelDifference: ModelDifference | null;
+  observedDifference: ModelDifference | null;
+  baselineFindings: number;
+  candidateFindings: number;
+  note: string;
 }
