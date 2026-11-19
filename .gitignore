@@ -1,11 +1,10 @@
 node_modules/
 dist/
 coverage/
-.vite/
 .env
 .env.*
 !.env.example
-.DS_Store
+!.env.production.example
 *.log
+.DS_Store
 *.tsbuildinfo
-apps/api/src/generated/

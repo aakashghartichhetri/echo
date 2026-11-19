@@ -9,3 +9,8 @@ export function duration(ms: number): string {
 }
 export function shortId(id: string): string { return id.startsWith('demo-') ? 'SAMPLE' : id.slice(0, 8); }
 export function isActive(status: string): boolean { return status === 'QUEUED' || status === 'RUNNING'; }
+
+// Active jobs need responsive updates; idle workspaces can refresh less often.
+export function nextRefreshDelay(hasActiveRun: boolean): number {
+  return hasActiveRun ? 1800 : 15000;
+}

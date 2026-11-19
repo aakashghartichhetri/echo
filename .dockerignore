@@ -2,7 +2,12 @@
 node_modules
 **/node_modules
 **/dist
+dist
 coverage
 .env
+.env.*
+!.env.example
+!.env.production.example
 *.log
 *.zip
+*.tsbuildinfo

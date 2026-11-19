@@ -116,6 +116,7 @@ export async function analyze(
   }
   const machine: Machine = { initialState: 0, states, transitions };
   const findings: Finding[] = [];
+  const samples: AnalysisReport['samples'] = [];
   let stoppedEarly = false;
   const seenFailurePrefixes = new Set<string>();
   for (const actions of sequencesThroughDepth(target.actions, options.verifyDepth)) {
@@ -133,6 +134,11 @@ export async function analyze(
     }
     const predicted = predict(machine, actions);
     checkedTraces += 1;
+    // Keep a small, repeatable set of real observations for comparing releases.
+    // These traces are already probed during verification; no extra requests.
+    if (actions.every((action) => action === actions[0])) {
+      samples.push({ actions: [...actions], outputs: [...observed] });
+    }
     const firstMismatch = predicted.findIndex((value, i) => value !== observed[i]);
     if (firstMismatch !== -1) {
       // Report only the shortest responsible prefix, not unrelated later actions.
@@ -157,6 +163,7 @@ export async function analyze(
     settings: options,
     machine,
     findings,
+    samples,
     checkedTraces,
     uniqueQueries: session.queries,
     cacheHits: session.cacheHits,

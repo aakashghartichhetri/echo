@@ -7,8 +7,33 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id          String    @id @default(uuid())
+  githubId    String?   @unique
+  login       String
+  displayName String
+  avatarUrl   String?
+  createdAt   DateTime  @default(now())
+  lastLoginAt DateTime  @default(now())
+  runs        Run[]
+  sessions    Session[]
+}
+
+model Session {
+  tokenHash  String   @id
+  userId     String
+  createdAt  DateTime @default(now())
+  expiresAt  DateTime
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
 model Run {
   id            String    @id @default(uuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   targetId      String
   status        RunStatus @default(QUEUED)
   settings      Json
@@ -22,7 +47,8 @@ model Run {
   startedAt     DateTime?
   completedAt   DateTime?
 
-  @@index([createdAt(sort: Desc)])
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([userId, status])
 }
 
 enum RunStatus {

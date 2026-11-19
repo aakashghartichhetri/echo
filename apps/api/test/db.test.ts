@@ -8,7 +8,7 @@ describe.skipIf(process.env.RUN_DB_TESTS !== '1')('PostgreSQL persistence', () =
     let id: string | undefined;
     try {
       const created = await database.run.create({ data: {
-        targetId: 'rate-limiter', status: 'QUEUED', settings: {
+        userId: 'local-demo', targetId: 'rate-limiter', status: 'QUEUED', settings: {
           accessDepth: 3, suffixDepth: 3, verifyDepth: 8, queryLimit: 2500, findingLimit: 1,
         },
       } });

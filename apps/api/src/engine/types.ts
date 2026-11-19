@@ -45,11 +45,17 @@ export interface Finding {
   firstMismatch: number;
 }
 
+export interface VerificationSample {
+  actions: string[];
+  outputs: string[];
+}
+
 export interface AnalysisReport {
   target: TargetDescriptor;
   settings: LearnOptions;
   machine: Machine;
   findings: Finding[];
+  samples: VerificationSample[];
   checkedTraces: number;
   uniqueQueries: number;
   cacheHits: number;

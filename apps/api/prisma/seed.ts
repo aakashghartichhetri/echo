@@ -6,16 +6,19 @@ import { DEFAULTS } from '../src/service/defaults.js';
 const database = new PrismaClient();
 
 async function seed() {
+  // Public workspaces start empty; demo reports remain local-only.
+  if (process.env.AUTH_MODE === 'github') return;
   for (const target of BUILTIN_TARGETS) {
     const id = `demo-${target.id}`;
     if (await database.run.findUnique({ where: { id } })) continue;
     const settings = DEFAULTS[target.id];
     if (!settings) throw new Error('Missing seed settings');
-    // Seed runs are representative, deterministic examples. Real runs go over HTTP.
+    // Seed samples always show the reference implementation. Live runs use HTTP.
     const report = await analyze(target, { trace: async (actions) => executeTrace(target.id, actions) }, settings);
     await database.run.create({
       data: {
         id,
+        userId: 'local-demo',
         targetId: target.id,
         status: 'COMPLETED',
         settings: settings as unknown as Prisma.InputJsonValue,

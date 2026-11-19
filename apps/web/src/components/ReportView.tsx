@@ -13,7 +13,7 @@ export function ReportView({ run }: { run: RunDetail }) {
   return <div className="report-stack">
     <div className="report-title-row">
       <div><div className="eyebrow">EXPLORATION REPORT · {shortId(run.id)}</div><h2>{report.target.name}</h2><p>Completed {formatDate(run.completedAt ?? run.createdAt)} · {duration(report.durationMs)}</p></div>
-      <span className={`status-chip ${finding ? 'warning' : 'complete'}`}>{finding ? 'Difference detected' : 'No mismatch in bounds'}</span>
+      <span className={`status-chip ${finding ? 'warning' : 'complete'}`}>{finding ? 'Difference detected' : report.stoppedEarly ? 'Partial check' : 'No mismatch in bounds'}</span>
     </div>
     <div className="metrics four">
       <div className="metric"><span>Inferred states</span><strong>{report.machine.states.length}</strong><small>Observable equivalence classes</small></div>
@@ -25,7 +25,7 @@ export function ReportView({ run }: { run: RunDetail }) {
       <div className="panel-heading-row"><div><div className="eyebrow rose">COUNTEREXAMPLE #{1}</div><h3>Learned model disagrees with the target</h3><p>The shortest mismatching trace encountered in this bounded search.</p></div><span className="status-chip warning">Step {finding.firstMismatch + 1}</span></div>
       <div className="finding-table-wrap"><table className="data-table"><thead><tr><th>Step</th><th>Input</th><th>Predicted</th><th>Observed</th><th>Result</th></tr></thead><tbody>{finding.actions.map((action, index) => <tr className={index === finding.firstMismatch ? 'mismatch-row' : ''} key={index}><td>{index + 1}</td><td><code>{action}</code></td><td><code>{finding.predicted[index]}</code></td><td><code>{finding.observed[index]}</code></td><td>{index === finding.firstMismatch ? <span className="bad-result">Mismatch</span> : <span className="good-result">Match</span>}</td></tr>)}</tbody></table></div>
       <p className="insight">The learner predicted <strong>{finding.predicted[finding.firstMismatch]}</strong>, but the black box returned <strong>{finding.observed[finding.firstMismatch]}</strong>. Review the documented target contract before classifying this as a bug.</p>
-    </section> : <section className="panel"><div className="panel-heading-row"><div><div className="eyebrow mint">MODEL CHECK</div><h3>No mismatch found</h3><p>Every verified trace matched the candidate within the chosen search depth and query budget.</p></div><span className="status-chip complete">Passed in bounds</span></div></section>}
+    </section> : <section className="panel"><div className="panel-heading-row"><div><div className="eyebrow mint">MODEL CHECK</div><h3>No mismatch found</h3><p>Every verified trace matched the candidate within the chosen search depth and query budget.</p></div><span className="status-chip complete">{report.stoppedEarly ? 'Partial check' : 'No difference observed'}</span></div></section>}
     <section className="panel"><MachineGraph machine={report.machine} /></section>
     <section className="panel"><div className="panel-heading-row"><div><h3>Method and limits</h3><p>What this result does—and does not—establish.</p></div></div>
       <div className="method-grid"><div><span>Training access depth</span><strong>{report.settings.accessDepth}</strong></div><div><span>Distinguishing suffix depth</span><strong>{report.settings.suffixDepth}</strong></div><div><span>Verification depth</span><strong>{report.settings.verifyDepth}</strong></div><div><span>Query budget</span><strong>{compactNumber(report.settings.queryLimit)}</strong></div></div>

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { createDevice } from './targets.js';
+import { createDevice, type RateLimiterMode } from './targets.js';
 
 interface Session {
   device: ReturnType<typeof createDevice>;
@@ -10,12 +10,14 @@ interface Session {
 export class SandboxSessions {
   private readonly sessions = new Map<string, Session>();
 
+  constructor(private readonly rateLimiterMode: RateLimiterMode = 'reference') {}
+
   create(targetId: string): string {
     const now = Date.now();
     for (const [id, session] of this.sessions) if (session.expiresAt <= now) this.sessions.delete(id);
     if (this.sessions.size >= 100) throw new Error('Maximum active sandbox sessions reached');
     const id = randomUUID();
-    this.sessions.set(id, { device: createDevice(targetId), targetId, expiresAt: now + 10 * 60_000 });
+    this.sessions.set(id, { device: createDevice(targetId, this.rateLimiterMode), targetId, expiresAt: now + 10 * 60_000 });
     return id;
   }
 

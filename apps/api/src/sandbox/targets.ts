@@ -24,7 +24,9 @@ interface Device {
 }
 
 /** The targets live outside the engine; only the HTTP interface connects them. */
-export function createDevice(targetId: string): Device {
+export type RateLimiterMode = 'reference' | 'patched';
+
+export function createDevice(targetId: string, rateLimiterMode: RateLimiterMode = 'reference'): Device {
   if (targetId === 'rate-limiter') {
     let used = 0;
     let streak = 0;
@@ -36,7 +38,7 @@ export function createDevice(targetId: string): Device {
         if (used < 3) { used += 1; return 'allowed'; }
         // Intentionally undocumented: after prolonged rejection, the target
         // sends a different response even though the contract promises 'denied'.
-        if (streak >= 8) return 'cooldown';
+        if (streak >= 8 && rateLimiterMode === 'reference') return 'cooldown';
         return 'denied';
       },
     };
@@ -68,7 +70,7 @@ export function createDevice(targetId: string): Device {
   throw new Error('Unknown sandbox target');
 }
 
-export function executeTrace(targetId: string, actions: string[]): string[] {
-  const device = createDevice(targetId);
+export function executeTrace(targetId: string, actions: string[], rateLimiterMode: RateLimiterMode = 'reference'): string[] {
+  const device = createDevice(targetId, rateLimiterMode);
   return actions.map((action) => device.step(action));
 }
