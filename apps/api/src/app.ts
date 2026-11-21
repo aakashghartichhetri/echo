@@ -40,9 +40,19 @@ function createLocalRateLimit(maxRequests: number): RequestHandler {
     if (counters.size > 2000) for (const [key, value] of counters) if (value.expires < now) counters.delete(key);
     const key = request.ip ?? 'unknown';
     const entry = counters.get(key);
-    if (!entry || entry.expires < now) { counters.set(key, { count: 1, expires: now + 60_000 }); next(); return; }
+    if (!entry || entry.expires < now) {
+      // Avoid unbounded memory growth if an attacker rotates source addresses.
+      if (!entry && counters.size >= 5_000) counters.delete(counters.keys().next().value!);
+      counters.set(key, { count: 1, expires: now + 60_000 });
+      next();
+      return;
+    }
     entry.count += 1;
-    if (entry.count > maxRequests) { response.status(429).json({ error: 'Too many requests. Try again shortly.' }); return; }
+    if (entry.count > maxRequests) {
+      response.setHeader('Retry-After', String(Math.max(1, Math.ceil((entry.expires - now) / 1000))));
+      response.status(429).json({ error: 'Too many requests. Try again shortly.' });
+      return;
+    }
     next();
   };
 }
@@ -91,14 +101,26 @@ export function createApp(database: PrismaClient, manager: RunManager, catalog: 
   app.use('/api/v1/auth', createLocalRateLimit(50));
   registerAuthRoutes(app, database);
   // Application endpoints are private. Session cookies alone are not enough for writes.
-  app.use('/api/v1', createLocalRateLimit(5000), authenticate(database), requireCsrf);
+  app.use('/api/v1', createLocalRateLimit(600), authenticate(database), requireCsrf);
   app.delete('/api/v1/account', async (request, response, next) => {
     if (config.AUTH_MODE !== 'github') { response.status(403).json({ error: 'Demo account cannot be deleted' }); return; }
     if (request.body?.confirm !== 'DELETE') { response.status(400).json({ error: 'Send {"confirm":"DELETE"} to remove your account and saved reports' }); return; }
     try {
-      const activeRuns = await database.run.count({ where: { userId: response.locals.userId, status: { in: ['QUEUED', 'RUNNING'] } } });
-      if (activeRuns > 0) { response.status(409).json({ error: 'Cancel or finish active runs before deleting your account' }); return; }
-      await database.user.delete({ where: { id: response.locals.userId } });
+      // Enqueue uses the same User row lock, so no new work can slip in
+      // between the active-run check and the account deletion.
+      const deleted = await database.$transaction(async (transaction) => {
+        await transaction.$queryRaw`SELECT id FROM "User" WHERE id = ${response.locals.userId} FOR UPDATE`;
+        const active = await transaction.run.count({
+          where: { userId: response.locals.userId, status: { in: ['QUEUED', 'RUNNING'] } },
+        });
+        if (active) return false;
+        await transaction.user.deleteMany({ where: { id: response.locals.userId } });
+        return true;
+      });
+      if (!deleted) {
+        response.status(409).json({ error: 'Cancel or finish active runs before deleting your account' });
+        return;
+      }
       response.append('Set-Cookie', '__Host-echo-session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0');
       response.status(204).end();
     } catch (error) { next(error); }
@@ -151,10 +173,23 @@ export function createApp(database: PrismaClient, manager: RunManager, catalog: 
   });
 
   app.get('/api/v1/runs', async (request, response, next) => {
-    const parsed = z.coerce.number().int().min(1).max(50).safeParse(request.query.limit ?? 25);
-    if (!parsed.success) { response.status(400).json({ error: 'limit must be 1–50' }); return; }
+    const parsed = z.object({
+      limit: z.coerce.number().int().min(1).max(50).default(25),
+      cursor: uuid.optional(),
+    }).strict().safeParse(request.query);
+    if (!parsed.success) { response.status(400).json({ error: 'Provide limit (1–50) and an optional UUID cursor' }); return; }
     try {
-      const runs = await database.run.findMany({ where: { userId: response.locals.userId }, orderBy: { createdAt: 'desc' }, take: parsed.data,
+      if (parsed.data.cursor) {
+        const cursor = await database.run.findFirst({
+          where: { id: parsed.data.cursor, userId: response.locals.userId }, select: { id: true },
+        });
+        if (!cursor) { response.status(404).json({ error: 'Run cursor not found' }); return; }
+      }
+      const runs = await database.run.findMany({
+        where: { userId: response.locals.userId },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        take: parsed.data.limit,
+        ...(parsed.data.cursor ? { cursor: { id: parsed.data.cursor }, skip: 1 } : {}),
         select: { id: true, targetId: true, status: true, createdAt: true, completedAt: true, stateCount: true, queries: true, casesChecked: true, findingCount: true },
       });
       response.json(runs);

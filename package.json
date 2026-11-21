@@ -16,13 +16,17 @@
     "dev:web": "npm run dev -w @echo/web",
     "build": "npm run db:generate && npm run build -w @echo/api && npm run build -w @echo/web",
     "test": "npm run test -w @echo/api && npm run test -w @echo/web",
+    "test:ops": "node --test scripts/operations.test.mjs",
+    "verify:production": "node scripts/verify-deployment.mjs",
     "test:core": "bash scripts/test-core-offline.sh",
     "typecheck": "npm run typecheck -w @echo/api && npm run typecheck -w @echo/web",
+    "lint": "node scripts/source-check.mjs",
     "db:generate": "prisma generate --schema apps/api/prisma/schema.prisma",
     "db:deploy": "prisma migrate deploy --schema apps/api/prisma/schema.prisma",
     "db:seed": "tsx apps/api/prisma/seed.ts",
     "start:api": "npm run start -w @echo/api",
-    "smoke": "node scripts/smoke.mjs"
+    "smoke": "node scripts/smoke.mjs",
+    "benchmark:core": "bash scripts/benchmark-core-offline.sh"
   },
   "devDependencies": {
     "@types/node": "22.15.29",

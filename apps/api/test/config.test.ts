@@ -27,6 +27,38 @@ describe('deployment guardrails', () => {
     await expect(import('../src/config.js')).rejects.toThrow('HTTPS PUBLIC_ORIGIN');
   });
 
+  it('rejects OAuth public origins with embedded credentials or paths', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('AUTH_MODE', 'github');
+    vi.stubEnv('PUBLIC_ORIGIN', 'https://user@echo.example.com');
+    vi.stubEnv('GITHUB_CLIENT_ID', 'test-id');
+    vi.stubEnv('GITHUB_CLIENT_SECRET', 'test-secret');
+    vi.stubEnv('SESSION_SECRET', 'a'.repeat(48));
+    vi.stubEnv('INTERNAL_ORACLE_SECRET', 'b'.repeat(48));
+    vi.resetModules();
+    await expect(import('../src/config.js')).rejects.toThrow('HTTPS PUBLIC_ORIGIN');
+  });
+
+  it('refuses localhost even when a public origin uses HTTPS', async () => {
+    vi.resetModules();
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('AUTH_MODE', 'github');
+    vi.stubEnv('PUBLIC_ORIGIN', 'https://localhost');
+    vi.stubEnv('GITHUB_CLIENT_ID', 'test-id');
+    vi.stubEnv('GITHUB_CLIENT_SECRET', 'test-secret');
+    vi.stubEnv('SESSION_SECRET', 'a'.repeat(48));
+    vi.stubEnv('INTERNAL_ORACLE_SECRET', 'b'.repeat(48));
+    await expect(import('../src/config.js')).rejects.toThrow('HTTPS PUBLIC_ORIGIN');
+  });
+
+  it('requires the internal oracle to stay on loopback', async () => {
+    vi.stubEnv('NODE_ENV', 'development');
+    vi.stubEnv('AUTH_MODE', 'local');
+    vi.stubEnv('ORACLE_BASE_URL', 'https://example.org');
+    vi.resetModules();
+    await expect(import('../src/config.js')).rejects.toThrow('ORACLE_BASE_URL must point to loopback');
+  });
+
   it('refuses operator external URLs in public mode', async () => {
     vi.resetModules();
     vi.stubEnv('NODE_ENV', 'production');

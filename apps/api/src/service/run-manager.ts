@@ -19,6 +19,7 @@ export class RunManager {
     private readonly externalUrl?: string,
     private readonly internalSecret?: string,
     private readonly dailyLimit = 20,
+    private readonly allowLocalExternal = false,
   ) {}
 
   /** Interrupted work is explicit rather than silently lost after a restart. */
@@ -64,6 +65,12 @@ export class RunManager {
       return updated.count === 1 ? 'cancelled' : 'not-cancellable';
     }
     if (run.status === 'RUNNING') {
+      // Persist cancellation before signalling: late worker results must not win.
+      const updated = await this.database.run.updateMany({
+        where: { id, userId, status: 'RUNNING' },
+        data: { status: 'CANCELLED', completedAt: new Date(), error: 'Cancelled by user' },
+      });
+      if (!updated.count) return 'not-cancellable';
       this.controllers.get(id)?.abort();
       return 'cancelled';
     }
@@ -111,21 +118,26 @@ export class RunManager {
       const url = run.targetId === 'external' ? this.externalUrl :
         this.internalSecret ? `${this.baseUrl}/api/v1/internal/oracle` : `${this.baseUrl}/api/v1/sandbox/execute`;
       if (!url) throw new Error('No oracle URL configured');
-      const oracle = new HttpTraceOracle(url, target.id, run.targetId === 'external' ? undefined : this.internalSecret);
+      const oracle = new HttpTraceOracle(url, target.id,
+        run.targetId === 'external' ? undefined : this.internalSecret,
+        run.targetId !== 'external' || this.allowLocalExternal);
       const report = await analyze(target, oracle, run.settings as unknown as LearnOptions, controller.signal);
-      await this.database.run.update({
-        where: { id },
+      const completed = await this.database.run.updateMany({
+        where: { id, status: 'RUNNING' },
         data: {
           status: 'COMPLETED', completedAt: new Date(), report: report as unknown as Prisma.InputJsonValue,
           queries: report.uniqueQueries, casesChecked: report.checkedTraces,
           stateCount: report.machine.states.length, findingCount: report.findings.length,
         },
       });
-      console.info(JSON.stringify({ event: 'run_completed', id, target: target.id, queries: report.uniqueQueries, findings: report.findings.length }));
+      if (completed.count) console.info(JSON.stringify({
+        event: 'run_completed', id, target: target.id, durationMs: report.durationMs,
+        queries: report.uniqueQueries, findings: report.findings.length,
+      }));
     } catch (error) {
       const cancelled = controller.signal.aborted || (error instanceof ExplorationError && error.code === 'ABORTED');
-      await this.database.run.update({
-        where: { id },
+      await this.database.run.updateMany({
+        where: { id, status: 'RUNNING' },
         data: { status: cancelled ? 'CANCELLED' : 'FAILED', completedAt: new Date(),
           error: cancelled ? 'Cancelled by user' : error instanceof Error ? error.message.slice(0, 200) : 'Unknown exploration failure' },
       });

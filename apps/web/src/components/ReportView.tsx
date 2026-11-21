@@ -4,7 +4,7 @@ import { compactNumber, duration, formatDate, shortId } from '../format';
 
 export function ReportView({ run }: { run: RunDetail }) {
   const report = run.report;
-  if (run.status === 'QUEUED' || run.status === 'RUNNING') return <div className="panel empty-panel"><div className="loading-ring"/><h3>{run.status === 'QUEUED' ? 'Queued for exploration' : 'Exploration in progress'}</h3><p>Replaying isolated traces, grouping observable states, then checking candidate predictions. The page refreshes automatically.</p></div>;
+  if (run.status === 'QUEUED' || run.status === 'RUNNING') return <div className="panel empty-panel" role="status" aria-live="polite"><div className="loading-ring"/><h3>{run.status === 'QUEUED' ? 'Queued for exploration' : 'Exploration in progress'}</h3><p>Replaying isolated traces, grouping observable states, then checking candidate predictions. The page refreshes automatically.</p></div>;
   if (run.status === 'CANCELLED') return <div className="panel empty-panel"><h3>Exploration cancelled</h3><p>The run was stopped before a report was created.</p></div>;
   if (run.status === 'FAILED') return <div className="panel empty-panel"><h3>Run failed</h3><p className="error-text">{run.error ?? 'Unknown error'}</p><p>Reduce the learning bounds or check that the target endpoint is reachable.</p></div>;
   if (!report) return <div className="panel empty-panel">This completed run has no saved report.</div>;

@@ -81,3 +81,41 @@ describe('GitHub sign-in and session boundary', () => {
     expect((await request(app).get('/api/v1/targets').set('Cookie', sessionCookie)).status).toBe(200);
   });
 });
+
+describe('GitHub OAuth failure handling', () => {
+  async function appInHostedMode(database: object) {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('AUTH_MODE', 'github');
+    vi.stubEnv('PUBLIC_ORIGIN', 'https://echo.example.com');
+    vi.stubEnv('GITHUB_CLIENT_ID', 'test-client');
+    vi.stubEnv('GITHUB_CLIENT_SECRET', 'test-secret');
+    vi.stubEnv('SESSION_SECRET', 'a'.repeat(48));
+    vi.stubEnv('INTERNAL_ORACLE_SECRET', 'b'.repeat(48));
+    vi.stubEnv('ECHO_EXTERNAL_URL', '');
+    vi.resetModules();
+    const { createApp } = await import('../src/app.js');
+    return createApp(database as PrismaClient, {} as RunManager, BUILTIN_TARGETS);
+  }
+
+  it('rejects missing or incorrect OAuth state without calling GitHub', async () => {
+    const app = await appInHostedMode({});
+    const githubFetch = vi.fn();
+    vi.stubGlobal('fetch', githubFetch);
+    expect((await request(app).get('/api/v1/auth/callback?code=test&state=invalid')).status).toBe(400);
+    const login = await request(app).get('/api/v1/auth/login');
+    const stateCookie = COOKIE((login.headers['set-cookie'] as string[])[0]!);
+    expect((await request(app).get(`/api/v1/auth/callback?code=test&state=${'x'.repeat(43)}`)
+      .set('Cookie', stateCookie)).status).toBe(400);
+    expect(githubFetch).not.toHaveBeenCalled();
+  });
+
+  it('rejects expired sessions and clears their browser cookie', async () => {
+    const app = await appInHostedMode({ session: {
+      findUnique: vi.fn(async () => ({ userId: 'alice', expiresAt: new Date(0), user: { id: 'alice' } })),
+    } });
+    const response = await request(app).get('/api/v1/auth/me')
+      .set('Cookie', `__Host-echo-session=${'t'.repeat(43)}`);
+    expect(response.status).toBe(401);
+    expect((response.headers['set-cookie'] as string[]).join(' ')).toContain('Max-Age=0');
+  });
+});

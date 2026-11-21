@@ -37,19 +37,38 @@ jobs:
           node-version: 24
       - name: Confirm Node and npm toolchain
         run: node --version && npm --version
-      - name: Install dependencies
-        run: |
-          if test -f package-lock.json; then
-            npm ci --no-audit --no-fund
-          else
-            npm install --no-audit --no-fund
-          fi
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
       - name: Check production dependency advisories
         run: npm audit --omit=dev --audit-level=high --audit=true
       - name: Generate Prisma client
         run: npm run db:generate
       - name: Apply database migrations
         run: npm run db:deploy
+      - name: Seed CI database for restore evidence
+        run: npm run db:seed
+      - name: Source hygiene checks
+        run: npm run lint
+      - name: Production operations guard tests
+        run: npm run test:ops
+      - name: PostgreSQL backup and isolated restore drill
+        run: |
+          set -euo pipefail
+          # A real PostgreSQL custom dump is restored into a different database.
+          docker run --rm --network host -e PGPASSWORD=echo_ci_only postgres:16.8-alpine \
+            pg_dump -h 127.0.0.1 -U echo -d echo -Fc > /tmp/echo-ci-backup.dump
+          test -s /tmp/echo-ci-backup.dump
+          docker run --rm --network host -e PGPASSWORD=echo_ci_only postgres:16.8-alpine \
+            createdb -h 127.0.0.1 -U echo echo_restore_ci
+          docker run --rm --network host -i -e PGPASSWORD=echo_ci_only postgres:16.8-alpine \
+            pg_restore -h 127.0.0.1 -U echo -d echo_restore_ci --exit-on-error < /tmp/echo-ci-backup.dump
+          restored=$(docker run --rm --network host -e PGPASSWORD=echo_ci_only postgres:16.8-alpine \
+            psql -h 127.0.0.1 -U echo -d echo_restore_ci -Atc 'SELECT COUNT(*) FROM "_prisma_migrations"')
+          test "$restored" -gt 0
+          restored_runs=$(docker run --rm --network host -e PGPASSWORD=echo_ci_only postgres:16.8-alpine \
+            psql -h 127.0.0.1 -U echo -d echo_restore_ci -Atc 'SELECT COUNT(*) FROM "Run"')
+          test "$restored_runs" -ge 2
+          echo "PASS isolated database restore: $restored_runs reports"
       - name: Typecheck
         run: npm run typecheck
       - name: Unit and PostgreSQL integration tests
@@ -58,8 +77,6 @@ jobs:
         run: npm run build
       - name: Verify production Docker image builds
         run: docker build --progress=plain --tag echo-saas-ci:latest .
-      - name: Seed local test workspace
-        run: npm run db:seed
       - name: Smoke checks
         run: |
           npm run start:api > /tmp/echo-api.log 2>&1 &
