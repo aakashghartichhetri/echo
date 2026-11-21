@@ -19,7 +19,7 @@ describe('real HTTP black-box boundary', () => {
     server = createApp(fakeDb, fakeManager, BUILTIN_TARGETS).listen(0, '127.0.0.1');
     await new Promise<void>((resolve) => server!.once('listening', resolve));
     const port = (server.address() as AddressInfo).port;
-    const oracle = new HttpTraceOracle(`http://127.0.0.1:${port}/api/v1/sandbox/execute`, 'rate-limiter');
+    const oracle = new HttpTraceOracle(`http://127.0.0.1:${port}/api/v1/sandbox/execute`, 'rate-limiter', undefined, true);
     const report = await analyze(BUILTIN_TARGETS[0]!, oracle, DEFAULTS['rate-limiter']!);
     expect(report.machine.states).toHaveLength(4);
     expect(report.findings[0]?.observed[7]).toBe('cooldown');

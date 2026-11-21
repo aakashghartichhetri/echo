@@ -32,6 +32,15 @@ describe('bounded black-box machine learning', () => {
     expect(result.stoppedEarly).toBe(false);
   });
 
+  it('repeats the same machine and observations for deterministic targets', async () => {
+    const first = await analyze(target('rate-limiter'), oracle('rate-limiter'), DEFAULTS['rate-limiter']!);
+    const second = await analyze(target('rate-limiter'), oracle('rate-limiter'), DEFAULTS['rate-limiter']!);
+    expect(first.machine).toEqual(second.machine);
+    expect(first.findings).toEqual(second.findings);
+    expect(first.samples).toEqual(second.samples);
+    expect(first.uniqueQueries).toBe(second.uniqueQueries);
+  });
+
   it('has a stable breadth-first enumeration order and predictable count', () => {
     expect([...sequencesThroughDepth(['a','b'], 2)]).toEqual([
       ['a'], ['b'], ['a', 'a'], ['a', 'b'], ['b', 'a'], ['b', 'b'],

@@ -61,6 +61,7 @@ export function Workspace({ account, onLogout, onDelete }: { account: AccountUse
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const menuButton = useRef<HTMLButtonElement>(null);
   const firstNavButton = useRef<HTMLButtonElement>(null);
+  const sidebar = useRef<HTMLElement>(null);
   const navWasOpened = useRef(false);
   const [theme, setTheme] = useState<Theme>(savedTheme);
   const [targets, setTargets] = useState<Target[]>([]);
@@ -159,11 +160,18 @@ export function Workspace({ account, onLogout, onDelete }: { account: AccountUse
 
   useEffect(() => {
     if (!mobileNavOpen) return;
-    const onEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setMobileNavOpen(false);
+    const onKeydown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { setMobileNavOpen(false); return; }
+      if (event.key !== 'Tab' || !sidebar.current) return;
+      const focusable = [...sidebar.current.querySelectorAll<HTMLButtonElement>('button:not([disabled])')];
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (!first || !last) return;
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
     };
-    window.addEventListener('keydown', onEscape);
-    return () => window.removeEventListener('keydown', onEscape);
+    window.addEventListener('keydown', onKeydown);
+    return () => window.removeEventListener('keydown', onKeydown);
   }, [mobileNavOpen]);
 
   useEffect(() => {
@@ -227,7 +235,7 @@ export function Workspace({ account, onLogout, onDelete }: { account: AccountUse
   return <div className="app-shell" data-theme={theme}>
     <a className="skip-link" href="#main">Skip to main content</a>
     {mobileNavOpen && <button className="nav-backdrop" type="button" aria-label="Close navigation" onClick={() => setMobileNavOpen(false)} />}
-    <aside className={`sidebar ${mobileNavOpen ? 'sidebar-open' : ''}`} aria-label="Workspace navigation" id="workspace-navigation">
+    <aside ref={sidebar} className={`sidebar ${mobileNavOpen ? 'sidebar-open' : ''}`} aria-label="Workspace navigation" id="workspace-navigation" role={mobileNavOpen ? 'dialog' : undefined} aria-modal={mobileNavOpen ? true : undefined}>
       <div className="brand">
         <div className="brand-symbol" aria-hidden="true"><span className="brand-wave">≋</span></div>
         <div className="brand-label"><strong>ECHO<span className="brand-dot">.</span></strong><small>BEHAVIOR LAB</small></div>

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { validateOracleUrl } from './engine/network-policy.js';
 
 // An empty Compose variable disables the optional integration; it is never a URL.
 const optionalText = z.preprocess(
@@ -19,6 +20,7 @@ const parsed = z.object({
   INTERNAL_ORACLE_SECRET: optionalText,
   ECHO_EXTERNAL_URL: optionalText,
   ECHO_EXTERNAL_ACTIONS: optionalText,
+  ECHO_ALLOW_LOCAL_EXTERNAL: z.enum(['true', 'false']).default('false'),
   ECHO_RATE_LIMITER_MODE: z.enum(['reference', 'patched']).default('reference'),
   TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(2).default(0),
   DAILY_RUN_LIMIT: z.coerce.number().int().min(1).max(100).default(20),
@@ -26,13 +28,25 @@ const parsed = z.object({
 
 if (!parsed.success) throw new Error(`Invalid environment configuration: ${parsed.error.message}`);
 export const config = parsed.data;
+// The worker's secret must never be forwarded to an untrusted hostname.
+const internalOracleUrl = new URL(config.ORACLE_BASE_URL);
+if (!['http:', 'https:'].includes(internalOracleUrl.protocol) ||
+    !['127.0.0.1', 'localhost', '[::1]'].includes(internalOracleUrl.hostname) ||
+    internalOracleUrl.username || internalOracleUrl.password) {
+  throw new Error('ORACLE_BASE_URL must point to loopback on this application host');
+}
+
 
 if (config.NODE_ENV === 'production' && config.AUTH_MODE !== 'github') {
   throw new Error('Production requires AUTH_MODE=github. Local demo authentication must never be public.');
 }
 if (config.AUTH_MODE === 'github') {
   const origin = config.PUBLIC_ORIGIN;
-  if (!origin || !/^https:\/\/[^/]+$/.test(origin) ||
+  const parsedOrigin = origin ? new URL(origin) : undefined;
+  if (!parsedOrigin || parsedOrigin.protocol !== 'https:' || parsedOrigin.origin !== origin ||
+      parsedOrigin.username || parsedOrigin.password ||
+      ['localhost', '127.0.0.1', '[::1]'].includes(parsedOrigin.hostname) ||
+      (parsedOrigin.port && parsedOrigin.port !== '443') ||
       !config.GITHUB_CLIENT_ID || !config.GITHUB_CLIENT_SECRET ||
       !config.SESSION_SECRET || config.SESSION_SECRET.length < 32 ||
       !config.INTERNAL_ORACLE_SECRET || config.INTERNAL_ORACLE_SECRET.length < 32) {
@@ -42,8 +56,11 @@ if (config.AUTH_MODE === 'github') {
     throw new Error('External oracle targets are disabled in public SaaS mode to prevent SSRF');
   }
 }
-if (config.ECHO_EXTERNAL_URL && !/^https?:\/\//.test(config.ECHO_EXTERNAL_URL)) {
-  throw new Error('External oracle URL must use HTTP(S)');
+if (config.AUTH_MODE === 'github' && config.ECHO_ALLOW_LOCAL_EXTERNAL === 'true') {
+  throw new Error('Private external targets cannot be enabled in hosted mode');
+}
+if (config.ECHO_EXTERNAL_URL) {
+  validateOracleUrl(config.ECHO_EXTERNAL_URL, config.ECHO_ALLOW_LOCAL_EXTERNAL === 'true');
 }
 
 if (config.NODE_ENV === 'production' && !process.env.DATABASE_URL) {

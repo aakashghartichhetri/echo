@@ -7,7 +7,8 @@ import { createApp } from './app.js';
 const database = new PrismaClient();
 const catalog = createCatalog(config.ECHO_EXTERNAL_URL, config.ECHO_EXTERNAL_ACTIONS);
 const manager = new RunManager(database, catalog, config.ORACLE_BASE_URL, config.ECHO_EXTERNAL_URL,
-  config.INTERNAL_ORACLE_SECRET ?? 'local-internal-oracle', config.DAILY_RUN_LIMIT);
+  config.INTERNAL_ORACLE_SECRET ?? 'local-internal-oracle', config.DAILY_RUN_LIMIT,
+  config.ECHO_ALLOW_LOCAL_EXTERNAL === 'true');
 
 async function main() {
   await database.$connect();

@@ -36,3 +36,17 @@ describe('dashboard states', () => {
     expect(markup).toContain('Start an exploration');
   });
 });
+
+// Mobile history actions must match desktop; cancellation cannot disappear on phones.
+// This checks rendered controls without requiring a browser or extra UI dependencies.
+import { History } from './components/History';
+
+describe('history accessibility', () => {
+  it('renders cancellation and inspection controls for in-progress work', () => {
+    const activeRun = { ...sample, status: 'RUNNING' as const };
+    const markup = renderToStaticMarkup(<History runs={[activeRun]} onInspect={() => {}}
+      onCancel={() => {}} onDelete={() => {}} onRefresh={() => {}} />);
+    expect(markup.match(/>Cancel</g)?.length).toBe(2);
+    expect(markup.match(/>Inspect ↗</g)?.length).toBe(2);
+  });
+});

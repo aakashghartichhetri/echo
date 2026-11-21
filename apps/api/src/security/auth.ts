@@ -30,6 +30,29 @@ function cookieValue(request: Request, name: string): string | undefined {
   return value && /^[a-zA-Z0-9_-]{16,128}$/.test(value) ? value : undefined;
 }
 
+/** GitHub responses are trusted identities, not unbounded JSON documents. */
+async function readOAuthJson(response: globalThis.Response): Promise<unknown> {
+  if (!response.body) throw new Error('GitHub returned an empty response');
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let bytes = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bytes += value.byteLength;
+      if (bytes > 32_768) throw new Error('GitHub response exceeded the size limit');
+      chunks.push(value);
+    }
+  } catch (error) {
+    await reader.cancel().catch(() => {});
+    throw error;
+  }
+  const payload = Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)));
+  try { return JSON.parse(payload.toString('utf8')) as unknown; }
+  catch { throw new Error('GitHub returned invalid JSON'); }
+}
+
 function setCookie(response: Response, name: string, value: string, maxAgeSeconds: number): void {
   response.append('Set-Cookie', `${name}=${value}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAgeSeconds}`);
 }
@@ -57,7 +80,7 @@ export function registerAuthRoutes(app: import('express').Express, database: Pri
     const state = typeof request.query.state === 'string' ? request.query.state : '';
     const expectedState = cookieValue(request, STATE_COOKIE);
     clearCookie(response, STATE_COOKIE);
-    if (!code || code.length > 256 || !expectedState || !safeEqual(state, expectedState)) {
+    if (!code || code.length > 256 || state.length !== 43 || !expectedState || !safeEqual(state, expectedState)) {
       response.status(400).send('Sign-in session expired. Return to ECHO and try again.');
       return;
     }
@@ -70,7 +93,7 @@ export function registerAuthRoutes(app: import('express').Express, database: Pri
         redirect: 'error',
       });
       if (!tokenResponse.ok) throw new Error('GitHub token exchange failed');
-      const tokenPayload: unknown = await tokenResponse.json();
+      const tokenPayload = await readOAuthJson(tokenResponse);
       const accessToken = typeof tokenPayload === 'object' && tokenPayload !== null && 'access_token' in tokenPayload
         ? (tokenPayload as { access_token?: unknown }).access_token : undefined;
       if (typeof accessToken !== 'string' || accessToken.length < 10) throw new Error('GitHub did not authorize this sign-in');
@@ -80,7 +103,7 @@ export function registerAuthRoutes(app: import('express').Express, database: Pri
         redirect: 'error',
       });
       if (!userResponse.ok) throw new Error('Could not read GitHub account');
-      const github: unknown = await userResponse.json();
+      const github = await readOAuthJson(userResponse);
       if (!github || typeof github !== 'object') throw new Error('Invalid GitHub profile');
       const profile = github as { id?: unknown; login?: unknown; name?: unknown; avatar_url?: unknown };
       if (typeof profile.id !== 'number' || !Number.isSafeInteger(profile.id) || typeof profile.login !== 'string' || !/^[a-zA-Z0-9-]{1,39}$/.test(profile.login)) {
